@@ -90,6 +90,7 @@ public class EurekaClientServerRestIntegrationTest {
                 serverCodecs,
                 eurekaServiceUrl
         );
+
     }
 
     @AfterClass
