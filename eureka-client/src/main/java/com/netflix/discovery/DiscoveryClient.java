@@ -194,6 +194,7 @@ public class DiscoveryClient implements EurekaClient {
 
     private final Stats stats = new Stats();
 
+    //1. 支持底层eureka client 与server底层的通信
     private static final class EurekaTransport {
         private ClosableResolver bootstrapResolver;
         private TransportClientFactory transportClientFactory;
@@ -324,6 +325,7 @@ public class DiscoveryClient implements EurekaClient {
     DiscoveryClient(ApplicationInfoManager applicationInfoManager, EurekaClientConfig config, AbstractDiscoveryClientOptionalArgs args,
                     Provider<BackupRegistry> backupRegistryProvider, EndpointRandomizer endpointRandomizer) {
         if (args != null) {
+            // 心跳检查
             this.healthCheckHandlerProvider = args.healthCheckHandlerProvider;
             this.healthCheckCallbackProvider = args.healthCheckCallbackProvider;
             this.eventListeners.addAll(args.getEventListeners());
@@ -357,6 +359,7 @@ public class DiscoveryClient implements EurekaClient {
         remoteRegionsToFetch = new AtomicReference<String>(clientConfig.fetchRegistryForRemoteRegions());
         remoteRegionsRef = new AtomicReference<>(remoteRegionsToFetch.get() == null ? null : remoteRegionsToFetch.get().split(","));
 
+        // fetchrRegistry  是否会去其他 eureka server 服务拉取配置，。如果是单个服务则设置false  如果是集群模式部署，则需要true
         if (config.shouldFetchRegistry()) {
             this.registryStalenessMonitor = new ThresholdLevelsMetric(this, METRIC_REGISTRY_PREFIX + "lastUpdateSec_", new long[]{15L, 30L, 60L, 120L, 240L, 480L});
         } else {
@@ -395,12 +398,14 @@ public class DiscoveryClient implements EurekaClient {
 
         try {
             // default size of 2 - 1 each for heartbeat and cacheRefresh
+            // 支持调度的线程池
             scheduler = Executors.newScheduledThreadPool(2,
                     new ThreadFactoryBuilder()
                             .setNameFormat("DiscoveryClient-%d")
                             .setDaemon(true)
                             .build());
 
+            // 支持心跳的线程池
             heartbeatExecutor = new ThreadPoolExecutor(
                     1, clientConfig.getHeartbeatExecutorThreadPoolSize(), 0, TimeUnit.SECONDS,
                     new SynchronousQueue<Runnable>(),
@@ -409,7 +414,7 @@ public class DiscoveryClient implements EurekaClient {
                             .setDaemon(true)
                             .build()
             );  // use direct handoff
-
+            // 支持缓存刷新的线程池
             cacheRefreshExecutor = new ThreadPoolExecutor(
                     1, clientConfig.getCacheRefreshExecutorThreadPoolSize(), 0, TimeUnit.SECONDS,
                     new SynchronousQueue<Runnable>(),
@@ -419,6 +424,7 @@ public class DiscoveryClient implements EurekaClient {
                             .build()
             );  // use direct handoff
 
+            // 用于底层通讯的网络组件
             eurekaTransport = new EurekaTransport();
             scheduleServerEndpointTask(eurekaTransport, args);
 
@@ -873,6 +879,7 @@ public class DiscoveryClient implements EurekaClient {
         logger.info(PREFIX + "{}: registering service...", appPathIdentifier);
         EurekaHttpResponse<Void> httpResponse;
         try {
+            // 调用底层和接口  AbstractJersey2EurekaHttpClient 中实现， 依赖于 jersey框架
             httpResponse = eurekaTransport.registrationClient.register(instanceInfo);
         } catch (Exception e) {
             logger.warn(PREFIX + "{} - registration failed {}", appPathIdentifier, e.getMessage(), e);
@@ -1011,8 +1018,10 @@ public class DiscoveryClient implements EurekaClient {
                 logger.info("Registered Applications size is zero : {}",
                         (applications.getRegisteredApplications().size() == 0));
                 logger.info("Application version is -1: {}", (applications.getVersion() == -1));
+                // 进行全量注册表拉取
                 getAndStoreFullRegistry();
             } else {
+                // 进行注册表更新，非全量
                 getAndUpdateDelta(applications);
             }
             applications.setAppsHashCode(applications.getReconcileHashCode());
@@ -1297,10 +1306,13 @@ public class DiscoveryClient implements EurekaClient {
      * Initializes all scheduled tasks.
      */
     private void initScheduledTasks() {
+        // 是否刷新注册表
         if (clientConfig.shouldFetchRegistry()) {
             // registry cache refresh timer
+            // 默认刷新时间30 秒
             int registryFetchIntervalSeconds = clientConfig.getRegistryFetchIntervalSeconds();
             int expBackOffBound = clientConfig.getCacheRefreshExecutorExponentialBackOffBound();
+            // 缓存定时刷新任务 ，刷新注册表缓存
             cacheRefreshTask = new TimedSupervisorTask(
                     "cacheRefresh",
                     scheduler,
@@ -1308,8 +1320,9 @@ public class DiscoveryClient implements EurekaClient {
                     registryFetchIntervalSeconds,
                     TimeUnit.SECONDS,
                     expBackOffBound,
-                    new CacheRefreshThread()
+                    new CacheRefreshThread() // 缓存刷新 线程
             );
+            // 调度是 延迟30秒调度
             scheduler.schedule(
                     cacheRefreshTask,
                     registryFetchIntervalSeconds, TimeUnit.SECONDS);

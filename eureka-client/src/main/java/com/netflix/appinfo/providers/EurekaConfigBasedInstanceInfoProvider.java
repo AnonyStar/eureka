@@ -55,6 +55,7 @@ public class EurekaConfigBasedInstanceInfoProvider implements Provider<InstanceI
             }
 
             // Builder the instance information to be registered with eureka server
+            // 使用了构造器模式来构建
             InstanceInfo.Builder builder = InstanceInfo.Builder.newBuilder(vipAddressResolver);
 
             // set the appropriate id for the InstanceInfo, falling back to datacenter Id if applicable, else hostname

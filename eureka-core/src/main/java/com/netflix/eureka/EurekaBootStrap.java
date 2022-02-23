@@ -131,6 +131,7 @@ public class EurekaBootStrap implements ServletContextListener {
         // 1. 创建 ConcurrentCompositeConfiguration 配置类 ，单例通过 dcl
         String dataCenter = ConfigurationManager.getConfigInstance().getString(EUREKA_DATACENTER);
         if (dataCenter == null) {
+            // 如果数据中心没有设置，则设置为默认的数据中心.
             logger.info("Eureka data center value eureka.datacenter is not set, defaulting to default");
             ConfigurationManager.getConfigInstance().setProperty(ARCHAIUS_DEPLOYMENT_DATACENTER, DEFAULT);
         } else {
@@ -138,6 +139,7 @@ public class EurekaBootStrap implements ServletContextListener {
         }
         String environment = ConfigurationManager.getConfigInstance().getString(EUREKA_ENVIRONMENT);
         if (environment == null) {
+            // 如果运行环境没有设置，则默认为 test 环境.
             ConfigurationManager.getConfigInstance().setProperty(ARCHAIUS_DEPLOYMENT_ENVIRONMENT, TEST);
             logger.info("Eureka environment value eureka.environment is not set, defaulting to test");
         }
@@ -147,6 +149,7 @@ public class EurekaBootStrap implements ServletContextListener {
      * init hook for server context. Override for custom logic.
      */
     protected void initEurekaServerContext() throws Exception {
+        //1 .实例化配置文件，读取配置文件
         EurekaServerConfig eurekaServerConfig = new DefaultEurekaServerConfig();
 
         // For backward compatibility
@@ -157,9 +160,12 @@ public class EurekaBootStrap implements ServletContextListener {
         logger.info(eurekaServerConfig.getJsonCodecName());
         ServerCodecs serverCodecs = new DefaultServerCodecs(eurekaServerConfig);
 
+        //2. 初始化 applicationInfoManager
         ApplicationInfoManager applicationInfoManager = null;
 
+        //3. 初始化                                                                            端
         if (eurekaClient == null) {
+            // 接口暴露config ， 读取 eureka-client.properties 配置文件.
             EurekaInstanceConfig instanceConfig = isCloud(ConfigurationManager.getDeploymentContext())
                     ? new CloudInstanceConfig()
                     : new MyDataCenterInstanceConfig();
@@ -173,6 +179,9 @@ public class EurekaBootStrap implements ServletContextListener {
             applicationInfoManager = eurekaClient.getApplicationInfoManager();
         }
 
+        // 处理注册相关的事情
+        // peerAware  peer： 多个同样的东西组成的一个集群，peers 集群，peer 是集群中的 一个实例
+        // InstanceRegistry 实例注册，存放所有的的注册到当前这个注册中心服务上来的服务实例，
         PeerAwareInstanceRegistry registry;
         if (isAws(applicationInfoManager.getInfo())) {
             registry = new AwsInstanceRegistry(

@@ -128,8 +128,8 @@ public class ResponseCacheImpl implements ResponseCache {
 
         long responseCacheUpdateIntervalMs = serverConfig.getResponseCacheUpdateIntervalMs();
         this.readWriteCacheMap =
-                CacheBuilder.newBuilder().initialCapacity(serverConfig.getInitialCapacityOfResponseCache())
-                        .expireAfterWrite(serverConfig.getResponseCacheAutoExpirationInSeconds(), TimeUnit.SECONDS)
+                CacheBuilder.newBuilder().initialCapacity(serverConfig.getInitialCapacityOfResponseCache()) //这是 大小默认为 1000
+                        .expireAfterWrite(serverConfig.getResponseCacheAutoExpirationInSeconds(), TimeUnit.SECONDS)// 设置过期时间 默认为180s 三分钟
                         .removalListener(new RemovalListener<Key, Value>() {
                             @Override
                             public void onRemoval(RemovalNotification<Key, Value> notification) {
@@ -147,6 +147,7 @@ public class ResponseCacheImpl implements ResponseCache {
                                     Key cloneWithNoRegions = key.cloneWithoutRegions();
                                     regionSpecificKeys.put(cloneWithNoRegions, key);
                                 }
+                                // 生成缓存值
                                 Value value = generatePayload(key);
                                 return value;
                             }
@@ -438,6 +439,7 @@ public class ResponseCacheImpl implements ResponseCache {
                         }
                     } else {
                         tracer = serializeOneApptimer.start();
+                        // 调用 registry。getApplication 获取注册信息
                         payload = getPayLoad(key, registry.getApplication(key.getName()));
                     }
                     break;
